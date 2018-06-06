@@ -83,6 +83,8 @@ int ahash_register_instance(struct crypto_template *tmpl,
 			    struct ahash_instance *inst);
 void ahash_free_instance(struct crypto_instance *inst);
 
+bool crypto_hash_alg_has_setkey(struct hash_alg_common *halg);
+
 int crypto_init_ahash_spawn(struct crypto_ahash_spawn *spawn,
 			    struct hash_alg_common *alg,
 			    struct crypto_instance *inst);
@@ -91,6 +93,15 @@ static inline void crypto_drop_ahash(struct crypto_ahash_spawn *spawn)
 {
 	crypto_drop_spawn(&spawn->base);
 }
+
+int shash_no_setkey(struct crypto_shash *tfm, const u8 *key,
+		    unsigned int keylen);
+
+static inline bool crypto_shash_alg_has_setkey(struct shash_alg *alg)
+{
+	return alg->setkey != shash_no_setkey;
+}
+
 
 struct hash_alg_common *ahash_attr_alg(struct rtattr *rta, u32 type, u32 mask);
 
@@ -171,6 +182,16 @@ static inline struct ahash_instance *ahash_alloc_instance(
 	const char *name, struct crypto_alg *alg)
 {
 	return crypto_alloc_instance2(name, alg, ahash_instance_headroom());
+}
+
+static inline void ahash_request_complete(struct ahash_request *req, int err)
+{
+	req->base.complete(&req->base, err);
+}
+
+static inline u32 ahash_request_flags(struct ahash_request *req)
+{
+	return req->base.flags;
 }
 
 static inline struct crypto_ahash *crypto_spawn_ahash(

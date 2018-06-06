@@ -817,7 +817,7 @@ static inline void ftrace_dump(enum ftrace_dump_mode oops_dump_mode) { }
 #endif
 
 /* Permissions on a sysfs file: you didn't miss the 0 prefix did you? */
-#define VERIFY_OCTAL_PERMISSIONS(perms)					\
+#define VERIFY_OCTAL_PERMISSIONS(perms) 				\
 	(BUILD_BUG_ON_ZERO((perms) < 0) +				\
 	 BUILD_BUG_ON_ZERO((perms) > 0777) +				\
 	 /* User perms >= group perms >= other perms */			\
@@ -826,8 +826,4 @@ static inline void ftrace_dump(enum ftrace_dump_mode oops_dump_mode) { }
 	 /* Other writable?  Generally considered a bad idea. */	\
 	 BUILD_BUG_ON_ZERO((perms) & 2) +				\
 	 (perms))
-
-/* To identify board information in panic logs, set this */
-extern char *mach_panic_string;
-
 #endif

@@ -150,10 +150,6 @@ static u64 round_to_nw_start(u64 jif)
 	do_div(jif, step);
 	return (jif + 1) * step;
 }
-
-
-
-
 u64 get_cpu_idle_time(unsigned int cpu, u64 *wall, int io_busy);
 static void cpufreq_interactive_timer_resched(
 	struct cpufreq_interactive_cpuinfo *pcpu)

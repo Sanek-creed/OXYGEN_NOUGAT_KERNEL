@@ -527,6 +527,7 @@ static ssize_t store_sampling_down_factor(struct kobject *a,
 }
 
 u64 get_cpu_idle_time(unsigned int cpu, u64 *wall, int io_busy);
+
 /* ignore_nice_load */
 static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 				      const char *buf, size_t count)

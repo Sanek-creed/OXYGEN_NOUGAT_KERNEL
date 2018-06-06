@@ -35,7 +35,11 @@
 modules.builtin
 Module.symvers
 *.dwo
-
+patch-*
+*.rej
+out/
+Anykernel2/
+AnyKernel2/
 #
 # Top-level generic files
 #

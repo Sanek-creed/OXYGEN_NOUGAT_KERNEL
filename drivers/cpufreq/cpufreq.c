@@ -28,6 +28,9 @@
 #include <linux/slab.h>
 #include <linux/suspend.h>
 #include <linux/tick.h>
+#ifdef CONFIG_SMP
+#include <linux/sched.h>
+#endif
 #include <trace/events/power.h>
 
 /**
@@ -118,6 +121,12 @@ bool have_governor_per_policy(void)
 	return !!(cpufreq_driver->flags & CPUFREQ_HAVE_GOVERNOR_PER_POLICY);
 }
 EXPORT_SYMBOL_GPL(have_governor_per_policy);
+
+bool cpufreq_driver_is_slow(void)
+{
+	return !(cpufreq_driver->flags & CPUFREQ_DRIVER_FAST);
+}
+EXPORT_SYMBOL_GPL(cpufreq_driver_is_slow);
 
 struct kobject *get_governor_parent_kobj(struct cpufreq_policy *policy)
 {
@@ -295,6 +304,50 @@ static inline void adjust_jiffies(unsigned long val, struct cpufreq_freqs *ci)
 }
 #endif
 
+/*********************************************************************
+ *               FREQUENCY INVARIANT CPU CAPACITY                    *
+ *********************************************************************/
+
+static DEFINE_PER_CPU(unsigned long, freq_scale) = SCHED_CAPACITY_SCALE;
+static DEFINE_PER_CPU(unsigned long, max_freq_scale) = SCHED_CAPACITY_SCALE;
+
+static void
+scale_freq_capacity(struct cpufreq_policy *policy, struct cpufreq_freqs *freqs)
+{
+	unsigned long cur = freqs ? freqs->new : policy->cur;
+	unsigned long scale = (cur << SCHED_CAPACITY_SHIFT) / policy->max;
+	struct cpufreq_cpuinfo *cpuinfo = &policy->cpuinfo;
+	int cpu;
+
+	pr_debug("cpus %*pbl cur/cur max freq %lu/%u kHz freq scale %lu\n",
+		 cpumask_pr_args(policy->cpus), cur, policy->max, scale);
+
+	for_each_cpu(cpu, policy->cpus)
+		per_cpu(freq_scale, cpu) = scale;
+
+	if (freqs)
+		return;
+
+	scale = (policy->max << SCHED_CAPACITY_SHIFT) / cpuinfo->max_freq;
+
+	pr_debug("cpus %*pbl cur max/max freq %u/%u kHz max freq scale %lu\n",
+		 cpumask_pr_args(policy->cpus), policy->max, cpuinfo->max_freq,
+		 scale);
+
+	for_each_cpu(cpu, policy->cpus)
+		per_cpu(max_freq_scale, cpu) = scale;
+}
+
+unsigned long cpufreq_scale_freq_capacity(struct sched_domain *sd, int cpu)
+{
+	return per_cpu(freq_scale, cpu);
+}
+
+unsigned long cpufreq_scale_max_freq_capacity(int cpu)
+{
+	return per_cpu(max_freq_scale, cpu);
+}
+
 static void __cpufreq_notify_transition(struct cpufreq_policy *policy,
 		struct cpufreq_freqs *freqs, unsigned int state)
 {
@@ -368,12 +421,9 @@ static void cpufreq_notify_post_transition(struct cpufreq_policy *policy,
 	cpufreq_notify_transition(policy, freqs, CPUFREQ_POSTCHANGE);
 }
 
-
-
 void cpufreq_freq_transition_begin(struct cpufreq_policy *policy,
 		struct cpufreq_freqs *freqs)
 {
-
 	/*
 	 * Catch double invocations of _begin() which lead to self-deadlock.
 	 * ASYNC_NOTIFICATION drivers are left out because the cpufreq core
@@ -399,6 +449,8 @@ wait:
 	policy->transition_task = current;
 
 	spin_unlock(&policy->transition_lock);
+
+	scale_freq_capacity(policy, freqs);
 
 	cpufreq_notify_transition(policy, freqs, CPUFREQ_PRECHANGE);
 }
@@ -1827,15 +1879,6 @@ void *cpufreq_get_driver_data(void)
 }
 EXPORT_SYMBOL_GPL(cpufreq_get_driver_data);
 
-void cpufreq_notify_utilization(struct cpufreq_policy *policy,
-		unsigned int util)
-{
-	if (policy) {
-		policy->util = util;
-	}
-}
-
-
 /*********************************************************************
  *                     NOTIFIER LISTS INTERFACE                      *
  *********************************************************************/
@@ -1853,7 +1896,6 @@ void cpufreq_notify_utilization(struct cpufreq_policy *policy,
  *	This function may sleep, and has the same return conditions as
  *	blocking_notifier_chain_register.
  */
-
 int cpufreq_register_notifier(struct notifier_block *nb, unsigned int list)
 {
 	int ret;
@@ -2092,8 +2134,8 @@ int __cpufreq_driver_getavg(struct cpufreq_policy *policy, unsigned int cpu)
     cpufreq_cpu_put(policy);
     return ret;
 }
-
 EXPORT_SYMBOL_GPL(__cpufreq_driver_getavg);
+
 
 /*
  * when "event" is CPUFREQ_GOV_LIMITS
@@ -2294,6 +2336,8 @@ static int cpufreq_set_policy(struct cpufreq_policy *policy,
 	/* notification of the new policy */
 	blocking_notifier_call_chain(&cpufreq_policy_notifier_list,
 			CPUFREQ_NOTIFY, new_policy);
+
+	scale_freq_capacity(new_policy, NULL);
 
 	policy->min = new_policy->min;
 	policy->max = new_policy->max;
@@ -2540,6 +2584,15 @@ int cpufreq_enable_boost_support(void)
 	/* This will get removed on driver unregister */
 	return create_boost_sysfs_file();
 }
+
+void cpufreq_notify_utilization(struct cpufreq_policy *policy,
+		unsigned int util)
+{
+	if (policy) {
+		policy->util = util;
+	}
+}
+
 EXPORT_SYMBOL_GPL(cpufreq_enable_boost_support);
 
 int cpufreq_boost_enabled(void)

@@ -19,10 +19,6 @@
 #include <linux/moduleparam.h>
 #include "power.h"
 
-
-
-
-
 /*
  * If set, the suspend/hibernate code will abort transitions to a sleep state
  * if wakeup events are registered during or immediately before the transition.
@@ -59,8 +55,6 @@ module_param(enable_netmgr_wl_ws, bool, 0644);
 module_param(enable_wlan_ipa_ws, bool, 0644);
 module_param(enable_wlan_pno_wl_ws, bool, 0644);
 module_param(enable_wcnss_filter_lock_ws, bool, 0644);
-
-
 
 #define IN_PROGRESS_BITS	(sizeof(int) * 4)
 #define MAX_IN_PROGRESS		((1 << IN_PROGRESS_BITS) - 1)
@@ -395,19 +389,6 @@ int device_init_wakeup(struct device *dev, bool enable)
 }
 EXPORT_SYMBOL_GPL(device_init_wakeup);
 
-/**
- * device_set_wakeup_enable - Enable or disable a device to wake up the system.
- * @dev: Device to handle.
- */
-int device_set_wakeup_enable(struct device *dev, bool enable)
-{
-	if (!dev || !dev->power.can_wakeup)
-		return -EINVAL;
-
-	return enable ? device_wakeup_enable(dev) : device_wakeup_disable(dev);
-}
-EXPORT_SYMBOL_GPL(device_set_wakeup_enable);
-
 #ifdef CONFIG_PM_AUTOSLEEP
 static void update_prevent_sleep_time(struct wakeup_source *ws, ktime_t now)
 {
@@ -476,6 +457,19 @@ static void wakeup_source_deactivate(struct wakeup_source *ws)
 }
 
 
+/**
+ * device_set_wakeup_enable - Enable or disable a device to wake up the system.
+ * @dev: Device to handle.
+ */
+int device_set_wakeup_enable(struct device *dev, bool enable)
+{
+	if (!dev || !dev->power.can_wakeup)
+		return -EINVAL;
+
+	return enable ? device_wakeup_enable(dev) : device_wakeup_disable(dev);
+}
+EXPORT_SYMBOL_GPL(device_set_wakeup_enable);
+
 /*
  * The functions below use the observation that each wakeup event starts a
  * period in which the system should not be suspended.  The moment this period
@@ -534,8 +528,6 @@ static void wakeup_source_activate(struct wakeup_source *ws)
 	trace_wakeup_source_activate(ws->name, cec);
 }
 
-
-
 static bool wakeup_source_blocker(struct wakeup_source *ws)
 {
         unsigned int wslen = 0;
@@ -582,8 +574,7 @@ static bool wakeup_source_blocker(struct wakeup_source *ws)
  */
 static void wakeup_source_report_event(struct wakeup_source *ws)
 {
-
-if (!wakeup_source_blocker(ws)) {
+        if (!wakeup_source_blocker(ws)) {
 		ws->event_count++;
 		/* This is racy, but the counter is approximate anyway. */
 		if (events_check_enabled)
@@ -591,7 +582,7 @@ if (!wakeup_source_blocker(ws)) {
 
 		if (!ws->active)
 			wakeup_source_activate(ws);
-}
+               }
 }
 
 /**
@@ -1000,7 +991,7 @@ static int print_wakeup_source_stats(struct seq_file *m,
 		active_time = ktime_set(0, 0);
 	}
 
-	ret = seq_printf(m, "%-12s\t%lu\t\t%lu\t\t%lu\t\t%lu\t\t"
+	ret = seq_printf(m, "%-32s\t%lu\t\t%lu\t\t%lu\t\t%lu\t\t"
 			"%lld\t\t%lld\t\t%lld\t\t%lld\t\t%lld\n",
 			ws->name, active_count, ws->event_count,
 			ws->wakeup_count, ws->expire_count,
@@ -1021,7 +1012,7 @@ static int wakeup_sources_stats_show(struct seq_file *m, void *unused)
 {
 	struct wakeup_source *ws;
 
-	seq_puts(m, "name\t\tactive_count\tevent_count\twakeup_count\t"
+	seq_puts(m, "name\t\t\t\t\tactive_count\tevent_count\twakeup_count\t"
 		"expire_count\tactive_since\ttotal_time\tmax_time\t"
 		"last_change\tprevent_suspend_time\n");
 

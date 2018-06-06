@@ -55,6 +55,7 @@
 #include <net/ip6_fib.h>
 #include <net/ip6_route.h>
 #include <net/ip6_tunnel.h>
+#include <net/gre.h>
 
 
 static bool log_ecn_error = true;
@@ -319,11 +320,13 @@ static struct ip6_tnl *ip6gre_tunnel_locate(struct net *net,
 	if (t || !create)
 		return t;
 
-	if (parms->name[0])
+	if (parms->name[0]) {
+		if (!dev_valid_name(parms->name))
+			return NULL;
 		strlcpy(name, parms->name, IFNAMSIZ);
-	else
+	} else {
 		strcpy(name, "ip6gre%d");
-
+	}
 	dev = alloc_netdev(sizeof(*t), name, NET_NAME_UNKNOWN,
 			   ip6gre_tunnel_setup);
 	if (!dev)
@@ -396,8 +399,9 @@ static void ip6gre_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 	greh = (const struct gre_base_hdr *)(skb->data + offset);
 	key = key_off ? *(__be32 *)(skb->data + key_off) : 0;
 
-	t = ip6gre_tunnel_lookup(skb->dev, &ipv6h->daddr, &ipv6h->saddr,key, greh->protocol);
-	if (!t)
+	t = ip6gre_tunnel_lookup(skb->dev, &ipv6h->daddr, &ipv6h->saddr,
+				 key, greh->protocol);
+	if (t == NULL)
 		return;
 
 	switch (type) {
@@ -407,13 +411,16 @@ static void ip6gre_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 	case ICMPV6_DEST_UNREACH:
 		net_warn_ratelimited("%s: Path to destination invalid or inactive!\n",
 				     t->parms.name);
-		break;
+		if (code != ICMPV6_PORT_UNREACH)
+			break;
+		return;
 	case ICMPV6_TIME_EXCEED:
 		if (code == ICMPV6_EXC_HOPLIMIT) {
 			net_warn_ratelimited("%s: Too small hop limit or routing loop in tunnel!\n",
 					     t->parms.name);
+			break;
 		}
-		break;
+		return;
 	case ICMPV6_PARAMPROB:
 		teli = 0;
 		if (code == ICMPV6_HDR_FIELD)
@@ -798,6 +805,8 @@ static inline int ip6gre_xmit_ipv4(struct sk_buff *skb, struct net_device *dev)
 	if (t->parms.flags & IP6_TNL_F_USE_ORIG_FWMARK)
 		fl6.flowi6_mark = skb->mark;
 
+	fl6.flowi6_uid = sock_net_uid(dev_net(dev), NULL);
+
 	err = ip6gre_xmit2(skb, dev, dsfield, &fl6, encap_limit, &mtu);
 	if (err != 0) {
 		/* XXX: send ICMP error even if DF is not set. */
@@ -848,6 +857,8 @@ static inline int ip6gre_xmit_ipv6(struct sk_buff *skb, struct net_device *dev)
 	if (t->parms.flags & IP6_TNL_F_USE_ORIG_FWMARK)
 		fl6.flowi6_mark = skb->mark;
 
+	fl6.flowi6_uid = sock_net_uid(dev_net(dev), NULL);
+
 	err = ip6gre_xmit2(skb, dev, dsfield, &fl6, encap_limit, &mtu);
 	if (err != 0) {
 		if (err == -EMSGSIZE)
@@ -890,7 +901,6 @@ static int ip6gre_xmit_other(struct sk_buff *skb, struct net_device *dev)
 		encap_limit = t->parms.encap_limit;
 
 	memcpy(&fl6, &t->fl.u.ip6, sizeof(fl6));
-	fl6.flowi6_proto = skb->protocol;
 
 	err = ip6gre_xmit2(skb, dev, 0, &fl6, encap_limit, &mtu);
 

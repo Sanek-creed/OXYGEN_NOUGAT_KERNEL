@@ -2772,9 +2772,10 @@ static ssize_t store_sampling_rate_idle_delay(struct kobject *a, struct attribut
 	if (ret != 1 || input < 0 || set_profile_active == true)
 	    return -EINVAL;
 
-	if (input == 0)
+	if (input == 0){
 	    sampling_rate_step_up_delay = 0;
 	    sampling_rate_step_down_delay = 0;
+            }
 
 	// ZZ: set profile number to 0 and profile name to custom mode if value has changed
 	if (!dbs_tuners_ins.profile_sticky_mode && dbs_tuners_ins.profile_number != 0 && dbs_tuners_ins.sampling_rate_idle_delay != input) {
@@ -3163,8 +3164,8 @@ static ssize_t store_freq_limit(struct kobject *a, struct attribute *b, const ch
 
 	if (input == 0) {
 	    max_scaling_freq_soft = max_scaling_freq_hard;
-	    if (freq_table_desc)							// ZZ: if descending ordered table is used
-		limit_table_start = max_scaling_freq_soft;				// ZZ: we should use the actual scaling soft limit value as search start point
+	    if (freq_table_desc){							// ZZ: if descending ordered table is used
+		limit_table_start = max_scaling_freq_soft;}				// ZZ: we should use the actual scaling soft limit value as search start point
 	    else
 		limit_table_end = system_freq_table[freq_table_size].frequency;		// ZZ: set search end point to max freq when using ascending table
 

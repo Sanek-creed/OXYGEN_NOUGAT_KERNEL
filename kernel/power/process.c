@@ -23,8 +23,6 @@
 /* 
  * Timeout for stopping processes
  */
-
-/* changed value from 20 to 2  for improved deep sleep*/
 unsigned int __read_mostly freeze_timeout_msecs = 2 * MSEC_PER_SEC;
 
 static int try_to_freeze_tasks(bool user_only)
